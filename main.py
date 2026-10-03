@@ -1,4 +1,4 @@
-"""Jednostavan preglednik CSV datoteka s tabličnim prikazom."""
+"""Simple CSV viewer with a tabular display."""
 
 from __future__ import annotations
 
@@ -29,20 +29,20 @@ PNG_RESOLUTIONS = {
 
 
 def parse_number(value: str) -> float:
-    """Pretvori decimalni zarez/točku u konačan float ili podigni ValueError."""
+    """Convert a decimal comma/dot to a finite float or raise ValueError."""
     text = value.strip()
     if not text:
-        raise ValueError("Prazna numerička vrijednost")
+        raise ValueError("Empty numeric value")
     if "," in text and "." not in text:
         text = text.replace(",", ".")
     number = float(text)
     if not math.isfinite(number):
-        raise ValueError("Vrijednost mora biti konačan broj")
+        raise ValueError("Value must be a finite number")
     return number
 
 
 def parse_iso_time(value: str) -> datetime:
-    """Pretvori ISO vrijeme, uključujući Z i duge decimalne sekunde."""
+    """Parse ISO time, including Z and long fractional seconds."""
     text = value.strip()
     if text.endswith(("Z", "z")):
         text = text[:-1] + "+00:00"
@@ -70,11 +70,11 @@ def parse_user_datetime(
     end: bool = False,
     timezone: tzinfo | None = None,
 ) -> datetime:
-    """Parsira korisnički datum/vrijeme; završna granica uključuje cijelu jedinicu."""
+    """Parse user-entered date/time; the end boundary includes the entire unit."""
     combined = f"{date_value.strip()} {time_value.strip()}".strip()
     match = _USER_DATETIME_RE.match(combined)
     if not match:
-        raise ValueError("Neispravan format datuma ili vremena")
+        raise ValueError("Invalid date or time format")
 
     day, month, year, hour, minute, second, fraction = match.groups()
     if hour is None:
@@ -94,7 +94,7 @@ def parse_user_datetime(
 
 
 def detect_delimiter(text: str) -> str:
-    """Prepoznaj delimiter uz provjeru konzistentnosti širine CSV redaka."""
+    """Detect the delimiter while checking CSV row-width consistency."""
     sample = text[:65536]
     lines = sample.splitlines()
     if len(sample) == 65536 and len(lines) > 1:
@@ -124,7 +124,7 @@ def detect_delimiter(text: str) -> str:
 def find_measurement_columns(
     headers: list[str], rows: list[list[str]]
 ) -> list[tuple[int, str]]:
-    """Pronađi numeričke mjerne stupce, bez ID-a i vremenskih metapodataka."""
+    """Find numeric measurement columns, excluding ID and time metadata."""
     ignored_headers = {"id", "time", "acquisition time (s)"}
     columns: list[tuple[int, str]] = []
     sample_rows = rows[:500]
@@ -154,7 +154,7 @@ def unit_from_header(header: str) -> str:
 
 
 def short_series_name(header: str) -> str:
-    """Vrati generički kraći naziv serije, neovisno o uređaju i broju kanala."""
+    """Return a generic shorter series name, independent of device and channel count."""
     channel = re.search(r"(?:^|\s)CH\d+\s+", header, flags=re.IGNORECASE)
     name = header[channel.end() :] if channel else header
     if unit_from_header(name):
@@ -165,7 +165,7 @@ def short_series_name(header: str) -> str:
 def average_on_common_times(
     series_points: list[tuple[list[datetime], list[float]]],
 ) -> tuple[list[datetime], list[float]]:
-    """Izračunaj prosjek samo za timestampove prisutne u svim serijama."""
+    """Calculate the average only for timestamps present in all series."""
     if not series_points:
         return [], []
     values_by_series = [
@@ -184,7 +184,7 @@ def average_on_common_times(
 
 
 def read_csv(path: str | Path) -> tuple[list[str], list[list[str]], str]:
-    """Učitaj CSV te vrati zaglavlja, retke i prepoznati delimiter."""
+    """Load a CSV and return headers, rows, and the detected delimiter."""
     file_path = Path(path)
     last_error: UnicodeDecodeError | None = None
 
@@ -208,7 +208,7 @@ def read_csv(path: str | Path) -> tuple[list[str], list[list[str]], str]:
 
 
 class Series:
-    """Jedna numerička mjerna serija poravnata s recima CSV datoteke."""
+    """A numeric measurement series aligned with CSV rows."""
 
     def __init__(self, name: str, values: list[float | None]) -> None:
         self.name = name
@@ -217,7 +217,7 @@ class Series:
 
 
 class Dataset:
-    """CSV podaci čiji se vremenski i numerički stupci parsiraju samo jednom."""
+    """CSV data whose time and numeric columns are parsed only once."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -245,7 +245,7 @@ class Dataset:
 
     @staticmethod
     def _unique_headers(headers: list[str]) -> list[str]:
-        """Očisti zaglavlja i učini duplicirane nazive jednoznačnima."""
+        """Clean headers and make duplicate names unique."""
         seen: dict[str, int] = {}
         unique: list[str] = []
         for raw_header in headers:
@@ -342,7 +342,7 @@ class Dataset:
         time_to: datetime | None = None,
         mode: str = "all",
     ) -> tuple[list[datetime], list[float]]:
-        """Vrati filtrirane uzorke ili minutni/satni prosjek, uz predmemoriju."""
+        """Return filtered samples or minute/hour averages, using a cache."""
         cache_key = (series_name, time_from, time_to, mode)
         if cache_key in self._points_cache:
             return self._points_cache[cache_key]
@@ -384,7 +384,7 @@ class Dataset:
                 [buckets[time][0] / buckets[time][1] for time in result_times],
             )
         else:
-            raise ValueError(f"Nepoznat način agregacije: {mode}")
+            raise ValueError(f"Unknown aggregation mode: {mode}")
 
         if len(self._points_cache) >= 128:
             self._points_cache.clear()
@@ -410,7 +410,7 @@ def save_figure_png(
     width: int,
     height: int,
 ) -> None:
-    """Spremi Matplotlib figuru u točno zadanoj rezoluciji i vrati GUI veličinu."""
+    """Save a Matplotlib figure at the exact requested resolution and restore the GUI size."""
     original_size = figure.get_size_inches().copy()
     try:
         figure.set_size_inches(width / 100, height / 100, forward=False)
@@ -421,7 +421,7 @@ def save_figure_png(
 
 
 class ExportControls(ttk.LabelFrame):
-    """Zajednički izbor PNG rezolucije i spremanje za sve grafove."""
+    """Shared PNG resolution selection and saving for all charts."""
 
     def __init__(
         self,
@@ -432,14 +432,14 @@ class ExportControls(ttk.LabelFrame):
         file_suffix: str,
         dialog_title: str,
     ) -> None:
-        super().__init__(master, text="Spremanje grafa", padding=(10, 5, 10, 7))
+        super().__init__(master, text="Chart export", padding=(10, 5, 10, 7))
         self.figure = figure
         self.canvas = canvas
         self.source_file = source_file
         self.file_suffix = file_suffix
         self.dialog_title = dialog_title
         self.resolution = tk.StringVar(value="Full HD (1920 × 1080)")
-        ttk.Label(self, text="Rezolucija:").pack(side=tk.LEFT)
+        ttk.Label(self, text="Resolution:").pack(side=tk.LEFT)
         ttk.Combobox(
             self,
             textvariable=self.resolution,
@@ -447,7 +447,7 @@ class ExportControls(ttk.LabelFrame):
             state="readonly",
             width=24,
         ).pack(side=tk.LEFT, padx=(5, 12))
-        ttk.Button(self, text="Spremi PNG…", command=self.save).pack(side=tk.LEFT)
+        ttk.Button(self, text="Save PNG…", command=self.save).pack(side=tk.LEFT)
 
     def save(self) -> None:
         default_name = (
@@ -460,7 +460,7 @@ class ExportControls(ttk.LabelFrame):
             title=self.dialog_title,
             defaultextension=".png",
             initialfile=default_name,
-            filetypes=(("PNG slika", "*.png"),),
+            filetypes=(("PNG image", "*.png"),),
         )
         if not selected_path:
             return
@@ -471,18 +471,18 @@ class ExportControls(ttk.LabelFrame):
             )
         except (OSError, ValueError, MemoryError) as error:
             messagebox.showerror(
-                "Greška pri spremanju", str(error), parent=self.winfo_toplevel()
+                "Save error", str(error), parent=self.winfo_toplevel()
             )
             return
         messagebox.showinfo(
-            "Graf je spremljen",
-            f"PNG je spremljen u rezoluciji {width} × {height}.",
+            "Chart saved",
+            f"PNG was saved at a resolution of {width} × {height}.",
             parent=self.winfo_toplevel(),
         )
 
 
 class HoverTooltip:
-    """Zajednički izgled i upravljanje hover oznakom na Matplotlib osi."""
+    """Shared appearance and handling of hover annotations on a Matplotlib axis."""
 
     def __init__(self, axes: object, canvas: object, fontsize: int = 12) -> None:
         self.canvas = canvas
@@ -516,7 +516,7 @@ class HoverTooltip:
 
 
 class TimeRangeControls(ttk.LabelFrame):
-    """Zajednički widget za unos i resetiranje vremenskog raspona."""
+    """Shared widget for entering and resetting the time range."""
 
     def __init__(
         self,
@@ -524,10 +524,10 @@ class TimeRangeControls(ttk.LabelFrame):
         dataset: Dataset,
         command: object,
     ) -> None:
-        super().__init__(master, text="Vremenski raspon", padding=(10, 5, 10, 7))
+        super().__init__(master, text="Time range", padding=(10, 5, 10, 7))
         time_range = dataset.time_range()
         if time_range is None:
-            raise ValueError("Dataset nema valjano vrijeme")
+            raise ValueError("Dataset has no valid time")
         self.first_time, self.last_time = time_range
         self.command = command
         self.date_from = tk.StringVar()
@@ -535,20 +535,20 @@ class TimeRangeControls(ttk.LabelFrame):
         self.date_to = tk.StringVar()
         self.time_to = tk.StringVar()
         fields = (
-            ("Datum od:", self.date_from, 12),
-            ("Vrijeme od:", self.time_from, 10),
-            ("Datum do:", self.date_to, 12),
-            ("Vrijeme do:", self.time_to, 10),
+            ("Date from:", self.date_from, 12),
+            ("Time from:", self.time_from, 10),
+            ("Date to:", self.date_to, 12),
+            ("Time to:", self.time_to, 10),
         )
         for label, variable, width in fields:
             ttk.Label(self, text=label).pack(side=tk.LEFT)
             entry = ttk.Entry(self, textvariable=variable, width=width)
             entry.pack(side=tk.LEFT, padx=(5, 12))
             entry.bind("<Return>", lambda _event: self.command())
-        ttk.Button(self, text="Primijeni vrijeme", command=self.command).pack(
+        ttk.Button(self, text="Apply time range", command=self.command).pack(
             side=tk.LEFT, padx=(0, 6)
         )
-        ttk.Button(self, text="Resetiraj vrijeme", command=self.reset).pack(side=tk.LEFT)
+        ttk.Button(self, text="Reset time range", command=self.reset).pack(side=tk.LEFT)
         self.reset(run_command=False)
 
     def reset(self, run_command: bool = True) -> None:
@@ -572,12 +572,12 @@ class TimeRangeControls(ttk.LabelFrame):
             timezone=self.first_time.tzinfo,
         )
         if time_from >= time_to:
-            raise ValueError("Početno vrijeme mora biti prije završnog vremena.")
+            raise ValueError("Start time must be earlier than end time.")
         return time_from, time_to
 
 
 class SeriesChecklist(ttk.LabelFrame):
-    """Zajednička skupina checkboxova za izbor mjernih serija."""
+    """Shared checkbox group for selecting measurement series."""
 
     def __init__(
         self,
@@ -611,8 +611,8 @@ class CsvViewer(tk.Tk):
         self.current_file: Path | None = None
         self.dataset: Dataset | None = None
 
-        self.status_text = tk.StringVar(value="Odaberite CSV datoteku za prikaz.")
-        self.page_text = tk.StringVar(value="Stranica 0 / 0")
+        self.status_text = tk.StringVar(value="Select a CSV file to display.")
+        self.page_text = tk.StringVar(value="Page 0 / 0")
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -625,21 +625,21 @@ class CsvViewer(tk.Tk):
 
         button_panel = ttk.Frame(toolbar)
         button_panel.pack(side=tk.LEFT)
-        ttk.Button(button_panel, text="Učitaj CSV…", command=self.choose_file).pack(
+        ttk.Button(button_panel, text="Load CSV…", command=self.choose_file).pack(
             fill=tk.X
         )
         graph_button_panel = ttk.Frame(button_panel)
         graph_button_panel.pack(fill=tk.X, pady=(6, 0))
         self.chart_button = ttk.Button(
             graph_button_panel,
-            text="Linijski graf",
+            text="Line chart",
             command=self.show_line_chart,
             state=tk.DISABLED,
         )
         self.chart_button.pack(side=tk.LEFT)
         self.delta_chart_button = ttk.Button(
             graph_button_panel,
-            text="Delta (Δ) graf",
+            text="Delta (Δ) chart",
             command=self.show_delta_chart,
             state=tk.DISABLED,
         )
@@ -690,21 +690,21 @@ class CsvViewer(tk.Tk):
         footer = ttk.Frame(self, padding=(10, 4, 10, 10))
         footer.pack(fill=tk.X)
         self.previous_button = ttk.Button(
-            footer, text="← Prethodna", command=self.previous_page, state=tk.DISABLED
+            footer, text="← Previous", command=self.previous_page, state=tk.DISABLED
         )
         self.previous_button.pack(side=tk.LEFT)
         ttk.Label(footer, textvariable=self.page_text).pack(side=tk.LEFT, padx=12)
         self.next_button = ttk.Button(
-            footer, text="Sljedeća →", command=self.next_page, state=tk.DISABLED
+            footer, text="Next →", command=self.next_page, state=tk.DISABLED
         )
         self.next_button.pack(side=tk.LEFT)
 
     def choose_file(self) -> None:
         initial_directory = Path(__file__).resolve().parent / "data"
         selected = filedialog.askopenfilename(
-            title="Odaberite CSV datoteku",
+            title="Select a CSV file",
             initialdir=initial_directory if initial_directory.exists() else Path.cwd(),
-            filetypes=(("CSV datoteke", "*.csv"), ("Sve datoteke", "*.*")),
+            filetypes=(("CSV files", "*.csv"), ("All files", "*.*")),
         )
         if selected:
             self.load_file(Path(selected))
@@ -713,11 +713,11 @@ class CsvViewer(tk.Tk):
         try:
             dataset = Dataset(path)
         except (OSError, csv.Error, UnicodeError) as error:
-            messagebox.showerror("Greška pri učitavanju", str(error))
+            messagebox.showerror("Load error", str(error))
             return
 
         if not dataset.headers:
-            messagebox.showwarning("Prazna datoteka", "CSV datoteka nema zaglavlje.")
+            messagebox.showwarning("Empty file", "CSV file has no header.")
             return
 
         self.current_file = path
@@ -728,8 +728,8 @@ class CsvViewer(tk.Tk):
         self._configure_columns()
         self._show_page()
         self.status_text.set(
-            f"{path.name}  •  {len(dataset.rows):,} redaka  "
-            f"•  {len(dataset.headers)} stupaca  •  separator: {dataset.delimiter!r}"
+            f"{path.name}  •  {len(dataset.rows):,} rows  "
+            f"•  {len(dataset.headers)} columns  •  delimiter: {dataset.delimiter!r}"
         )
         self.chart_button.configure(state=tk.NORMAL)
         self.delta_chart_button.configure(state=tk.NORMAL)
@@ -741,14 +741,14 @@ class CsvViewer(tk.Tk):
         dataset = self.dataset
         if dataset is None or not dataset.has_time or not dataset.series:
             messagebox.showwarning(
-                "Nedostaju podaci",
-                "CSV mora sadržavati stupac 'Time' i barem jedan numerički mjerni stupac.",
+                "Missing data",
+                "CSV must contain a 'Time' column and at least one numeric measurement column.",
             )
             return
 
         detected_units = {series.unit for series in dataset.series} - {""}
         common_unit = detected_units.pop() if len(detected_units) == 1 else ""
-        y_axis_label = f"Vrijednost ({common_unit})" if common_unit else "Vrijednost"
+        y_axis_label = f"Value ({common_unit})" if common_unit else "Value"
 
         try:
             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -756,14 +756,14 @@ class CsvViewer(tk.Tk):
             from matplotlib.figure import Figure
         except ImportError:
             messagebox.showerror(
-                "Matplotlib nije instaliran",
-                "Pokrenite: python -m pip install -r requirements.txt",
+                "Matplotlib is not installed",
+                "Run: python -m pip install -r requirements.txt",
             )
             return
 
         chart_window = tk.Toplevel(self)
         chart_window.title(
-            f"Linijski graf — {self.current_file.name if self.current_file else ''}"
+            f"Line chart — {self.current_file.name if self.current_file else ''}"
         )
         chart_window.geometry("1920x1080")
         chart_window.minsize(720, 480)
@@ -779,7 +779,7 @@ class CsvViewer(tk.Tk):
         if not series_data:
             chart_window.destroy()
             messagebox.showwarning(
-                "Nema podataka", "Nisu pronađene valjane vrijednosti za crtanje grafa."
+                "No data", "No valid values were found for plotting."
             )
             return
 
@@ -802,19 +802,19 @@ class CsvViewer(tk.Tk):
         time_to_value = tk.StringVar(value=last_time.strftime("%H:%M:%S"))
         current_view: dict[str, str | bool | None] = {
             "period": None,
-            "title_suffix": "svi uzorci",
+            "title_suffix": "all samples",
             "average_selected_series": False,
         }
         series_visibility = {
             header: tk.BooleanVar(value=True) for header in series_data
         }
 
-        ttk.Label(scale_controls, text="Min. vrijednost:").pack(side=tk.LEFT)
+        ttk.Label(scale_controls, text="Min. value:").pack(side=tk.LEFT)
         minimum_entry = ttk.Entry(
             scale_controls, textvariable=minimum_value, width=10
         )
         minimum_entry.pack(side=tk.LEFT, padx=(5, 14))
-        ttk.Label(scale_controls, text="Maks. vrijednost:").pack(side=tk.LEFT)
+        ttk.Label(scale_controls, text="Max. value:").pack(side=tk.LEFT)
         maximum_entry = ttk.Entry(
             scale_controls, textvariable=maximum_value, width=10
         )
@@ -826,16 +826,16 @@ class CsvViewer(tk.Tk):
                 upper_limit = float(maximum_value.get().strip().replace(",", "."))
             except ValueError:
                 messagebox.showerror(
-                    "Neispravna vrijednost",
-                    "Minimalna i maksimalna vrijednost moraju biti brojevi.",
+                    "Invalid value",
+                    "Minimum and maximum values must be numbers.",
                     parent=chart_window,
                 )
                 return
 
             if lower_limit >= upper_limit:
                 messagebox.showerror(
-                    "Neispravan raspon",
-                    "Minimalna vrijednost mora biti manja od maksimalne.",
+                    "Invalid range",
+                    "Minimum value must be less than maximum value.",
                     parent=chart_window,
                 )
                 return
@@ -844,7 +844,7 @@ class CsvViewer(tk.Tk):
             canvas.draw_idle()
 
         ttk.Button(
-            scale_controls, text="Primijeni", command=apply_scale
+            scale_controls, text="Apply", command=apply_scale
         ).pack(side=tk.LEFT, padx=(0, 18))
         minimum_entry.bind("<Return>", apply_scale)
         maximum_entry.bind("<Return>", apply_scale)
@@ -859,16 +859,16 @@ class CsvViewer(tk.Tk):
                 time_from, time_to = time_filter.bounds()
             except ValueError:
                 messagebox.showerror(
-                    "Neispravan datum ili vrijeme",
-                    "Datum upišite kao 27.09.2026., a vrijeme kao 00:00.",
+                    "Invalid date or time",
+                    "Enter the date as 27.09.2026. and the time as 00:00.",
                     parent=chart_window,
                 )
                 return
 
             if time_from >= time_to:
                 messagebox.showerror(
-                    "Neispravan raspon",
-                    "Početno vrijeme mora biti prije završnog vremena.",
+                    "Invalid range",
+                    "Start time must be earlier than end time.",
                     parent=chart_window,
                 )
                 return
@@ -878,8 +878,8 @@ class CsvViewer(tk.Tk):
             ]
             if not selected_headers:
                 messagebox.showwarning(
-                    "Nije odabrana mjerna serija",
-                    "Odaberite barem jednu mjernu seriju za prikaz.",
+                    "No measurement series selected",
+                    "Select at least one measurement series to display.",
                     parent=chart_window,
                 )
                 return
@@ -892,8 +892,8 @@ class CsvViewer(tk.Tk):
             }
             if not any(values for _times, values in selected_points.values()):
                 messagebox.showwarning(
-                    "Nema podataka",
-                    "U odabranom vremenskom rasponu nema uzoraka.",
+                    "No data",
+                    "There are no samples in the selected time range.",
                     parent=chart_window,
                 )
                 return
@@ -906,12 +906,12 @@ class CsvViewer(tk.Tk):
                 }
                 if len(selected_units) != 1:
                     readable_units = ", ".join(
-                        sorted(unit or "bez jedinice" for unit in selected_units)
+                        sorted(unit or "no unit" for unit in selected_units)
                     )
                     messagebox.showwarning(
-                        "Različite mjerne jedinice",
-                        "Prosjek odabranih serija moguć je samo za serije iste "
-                        f"mjerne jedinice. Odabrane jedinice: {readable_units}.",
+                        "Different measurement units",
+                        "The average of selected series can only be calculated for series with the same "
+                        f"measurement unit. Selected units: {readable_units}.",
                         parent=chart_window,
                     )
                     return
@@ -932,9 +932,9 @@ class CsvViewer(tk.Tk):
                 )
                 if not display_times:
                     messagebox.showwarning(
-                        "Nema zajedničkih uzoraka",
-                        "Odabrane serije nemaju zajedničke timestampove u zadanom "
-                        "vremenskom rasponu.",
+                        "No common samples",
+                        "The selected series have no common timestamps in the specified "
+                        "time range.",
                         parent=chart_window,
                     )
                     return
@@ -943,11 +943,11 @@ class CsvViewer(tk.Tk):
                     display_times,
                     display_values,
                     linewidth=1.5,
-                    label="Prosjek odabranih serija",
+                    label="Average of selected series",
                 )
                 hover_series.append(
                     (
-                        "Prosjek odabranih serija",
+                        "Average of selected series",
                         selected_average_unit,
                         list(date2num(display_times)),
                         display_values,
@@ -976,10 +976,10 @@ class CsvViewer(tk.Tk):
 
             formatted_count = f"{displayed_sample_count:,}".replace(",", ".")
             axes.set_title(
-                f"Mjerenja kroz vrijeme - {title_suffix} ({formatted_count})",
+                f"Measurements over time - {title_suffix} ({formatted_count})",
                 fontsize=24,
             )
-            axes.set_xlabel("Vrijeme", fontsize=20)
+            axes.set_xlabel("Time", fontsize=20)
             axes.set_ylabel(y_axis_label, fontsize=20)
             axes.tick_params(axis="both", labelsize=14)
             axes.xaxis.set_major_formatter(
@@ -1014,29 +1014,29 @@ class CsvViewer(tk.Tk):
         time_to_value = time_filter.time_to
 
         view_controls = ttk.LabelFrame(
-            chart_window, text="Način prikaza", padding=(10, 5, 10, 7)
+            chart_window, text="View mode", padding=(10, 5, 10, 7)
         )
         view_controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
         ttk.Button(
             view_controls,
-            text="Svi uzorci",
-            command=lambda: show_samples(None, "svi uzorci"),
+            text="All samples",
+            command=lambda: show_samples(None, "all samples"),
         ).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(
             view_controls,
-            text="1-minutni prosjek",
-            command=lambda: show_samples("minute", "1-minutni prosjek"),
+            text="1-minute average",
+            command=lambda: show_samples("minute", "1-minute average"),
         ).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(
             view_controls,
-            text="1-satni prosjek",
-            command=lambda: show_samples("hour", "1-satni prosjek"),
+            text="1-hour average",
+            command=lambda: show_samples("hour", "1-hour average"),
         ).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(
             view_controls,
-            text="Prosjek odabranih serija",
+            text="Average of selected series",
             command=lambda: show_samples(
-                current_view["period"], "prosjek odabranih serija", True
+                current_view["period"], "average of selected series", True
             ),
         ).pack(side=tk.LEFT)
 
@@ -1049,7 +1049,7 @@ class CsvViewer(tk.Tk):
 
         SeriesChecklist(
             chart_window,
-            "Mjerne serije",
+            "Measurement series",
             series_visibility,
             apply_series_filter,
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
@@ -1060,7 +1060,7 @@ class CsvViewer(tk.Tk):
             canvas,
             self.current_file,
             "graf",
-            "Spremi graf kao PNG",
+            "Save chart as PNG",
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
         def show_hover_value(event: object) -> None:
@@ -1117,15 +1117,15 @@ class CsvViewer(tk.Tk):
         canvas.mpl_connect("motion_notify_event", show_hover_value)
 
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        show_samples(None, "svi uzorci")
+        show_samples(None, "all samples")
 
     def show_delta_chart(self) -> None:
-        """Prikaži razlike mjernih serija iste jedinice prema referentnoj seriji."""
+        """Display differences between measurement series of the same unit relative to a reference series."""
         dataset = self.dataset
         if dataset is None or not dataset.has_time or len(dataset.series) < 2:
             messagebox.showwarning(
-                "Nedostaju podaci",
-                "Delta graf zahtijeva stupac 'Time' i barem dvije numeričke serije.",
+                "Missing data",
+                "Delta chart requires a 'Time' column and at least two numeric series.",
             )
             return
 
@@ -1135,8 +1135,8 @@ class CsvViewer(tk.Tk):
             from matplotlib.figure import Figure
         except ImportError:
             messagebox.showerror(
-                "Matplotlib nije instaliran",
-                "Pokrenite: python -m pip install -r requirements.txt",
+                "Matplotlib is not installed",
+                "Run: python -m pip install -r requirements.txt",
             )
             return
 
@@ -1144,8 +1144,8 @@ class CsvViewer(tk.Tk):
 
         if len(series_data) < 2:
             messagebox.showwarning(
-                "Nedostaju podaci",
-                "Za Delta graf potrebne su barem dvije valjane numeričke serije.",
+                "Missing data",
+                "Delta chart requires at least two valid numeric series.",
             )
             return
 
@@ -1163,8 +1163,8 @@ class CsvViewer(tk.Tk):
         )
         if initial_reference is None:
             messagebox.showwarning(
-                "Nema kompatibilnih serija",
-                "Delta graf zahtijeva barem dvije numeričke serije iste mjerne jedinice.",
+                "No compatible series",
+                "Delta chart requires at least two numeric series with the same measurement unit.",
             )
             return
         reference_headers = tuple(
@@ -1195,7 +1195,7 @@ class CsvViewer(tk.Tk):
             for header in series_data
         }
         reference_zero_text = tk.StringVar(
-            value=f"Prikaži referentnu seriju kao Δ = 0"
+            value=f"Show reference series as Δ = 0"
             f"{' ' + initial_unit if initial_unit else ''}"
         )
         current_delta_unit = {"unit": initial_unit}
@@ -1205,7 +1205,7 @@ class CsvViewer(tk.Tk):
         time_to_value = tk.StringVar(value=last_time.strftime("%H:%M:%S"))
         current_view: dict[str, str | None] = {
             "period": None,
-            "title": "svi uzorci",
+            "title": "all samples",
         }
 
         def raw_delta_values(reference_header: str) -> list[float]:
@@ -1238,10 +1238,10 @@ class CsvViewer(tk.Tk):
         hover_annotation = None
 
         reference_controls = ttk.LabelFrame(
-            chart_window, text="Referentna serija", padding=(10, 5, 10, 7)
+            chart_window, text="Reference series", padding=(10, 5, 10, 7)
         )
         reference_controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(8, 5))
-        ttk.Label(reference_controls, text="Referentna serija:").pack(side=tk.LEFT)
+        ttk.Label(reference_controls, text="Reference series:").pack(side=tk.LEFT)
         reference_picker = ttk.Combobox(
             reference_controls,
             textvariable=reference_value,
@@ -1257,13 +1257,13 @@ class CsvViewer(tk.Tk):
         ).pack(side=tk.LEFT)
 
         scale_controls = ttk.LabelFrame(
-            chart_window, text="Y-skala", padding=(10, 5, 10, 7)
+            chart_window, text="Y scale", padding=(10, 5, 10, 7)
         )
         scale_controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
         ttk.Label(scale_controls, text="Min. Δ:").pack(side=tk.LEFT)
         minimum_entry = ttk.Entry(scale_controls, textvariable=minimum_value, width=10)
         minimum_entry.pack(side=tk.LEFT, padx=(5, 14))
-        ttk.Label(scale_controls, text="Maks. Δ:").pack(side=tk.LEFT)
+        ttk.Label(scale_controls, text="Max. Δ:").pack(side=tk.LEFT)
         maximum_entry = ttk.Entry(scale_controls, textvariable=maximum_value, width=10)
         maximum_entry.pack(side=tk.LEFT, padx=(5, 14))
 
@@ -1273,22 +1273,22 @@ class CsvViewer(tk.Tk):
                 upper = parse_number(maximum_value.get())
             except ValueError:
                 messagebox.showerror(
-                    "Neispravna vrijednost",
-                    "Minimalna i maksimalna Delta vrijednost moraju biti brojevi.",
+                    "Invalid value",
+                    "Minimum and maximum Delta values must be numbers.",
                     parent=chart_window,
                 )
                 return
             if lower >= upper:
                 messagebox.showerror(
-                    "Neispravan raspon",
-                    "Minimalna Delta vrijednost mora biti manja od maksimalne.",
+                    "Invalid range",
+                    "Minimum Delta value must be less than maximum Delta value.",
                     parent=chart_window,
                 )
                 return
             axes.set_ylim(lower, upper)
             canvas.draw_idle()
 
-        ttk.Button(scale_controls, text="Primijeni", command=apply_scale).pack(
+        ttk.Button(scale_controls, text="Apply", command=apply_scale).pack(
             side=tk.LEFT
         )
         minimum_entry.bind("<Return>", apply_scale)
@@ -1300,15 +1300,15 @@ class CsvViewer(tk.Tk):
                 time_from, time_to = time_filter.bounds()
             except ValueError:
                 messagebox.showerror(
-                    "Neispravan datum ili vrijeme",
-                    "Datum upišite kao 27.09.2026., a vrijeme kao 00:00.",
+                    "Invalid date or time",
+                    "Enter the date as 27.09.2026. and the time as 00:00.",
                     parent=chart_window,
                 )
                 return
             if time_from >= time_to:
                 messagebox.showerror(
-                    "Neispravan raspon",
-                    "Početno vrijeme mora biti prije završnog vremena.",
+                    "Invalid range",
+                    "Start time must be earlier than end time.",
                     parent=chart_window,
                 )
                 return
@@ -1322,8 +1322,8 @@ class CsvViewer(tk.Tk):
             reference_lookup = dict(zip(reference_times, reference_values))
             if not reference_lookup:
                 messagebox.showwarning(
-                    "Nema podataka",
-                    "Referentna serija nema uzoraka u odabranom rasponu.",
+                    "No data",
+                    "The reference series has no samples in the selected range.",
                     parent=chart_window,
                 )
                 return
@@ -1338,9 +1338,9 @@ class CsvViewer(tk.Tk):
             ]
             if incompatible_headers:
                 messagebox.showwarning(
-                    "Različite mjerne jedinice",
-                    "Delta se može računati samo između serija iste mjerne jedinice "
-                    "kao referentna serija.",
+                    "Different measurement units",
+                    "Delta can only be calculated between series with the same measurement unit "
+                    "as the reference series.",
                     parent=chart_window,
                 )
                 return
@@ -1349,8 +1349,8 @@ class CsvViewer(tk.Tk):
             ]
             if not comparison_headers and not show_reference_value.get():
                 messagebox.showwarning(
-                    "Nema serija za prikaz",
-                    "Odaberite mjernu seriju ili uključite prikaz referentne serije.",
+                    "No series to display",
+                    "Select a measurement series or enable display of the reference series.",
                     parent=chart_window,
                 )
                 return
@@ -1384,7 +1384,7 @@ class CsvViewer(tk.Tk):
                 zero_values = [0.0] * len(zero_times)
                 displayed_count = displayed_count or len(zero_times)
                 reference_name = (
-                    short_series_name(reference_header) + " (referenca)"
+                    short_series_name(reference_header) + " (reference)"
                 )
                 axes.plot(
                     zero_times,
@@ -1399,8 +1399,8 @@ class CsvViewer(tk.Tk):
 
             if not hover_series:
                 messagebox.showwarning(
-                    "Nema podataka",
-                    "Odabrane serije nemaju zajedničke vremenske uzorke s referencom.",
+                    "No data",
+                    "The selected series have no common time samples with the reference.",
                     parent=chart_window,
                 )
                 return
@@ -1410,7 +1410,7 @@ class CsvViewer(tk.Tk):
                 f"Delta (Δ) - {title_suffix} ({formatted_count})",
                 fontsize=24,
             )
-            axes.set_xlabel("Vrijeme", fontsize=20)
+            axes.set_xlabel("Time", fontsize=20)
             delta_label = f"Δ ({reference_unit})" if reference_unit else "Δ"
             axes.set_ylabel(delta_label, fontsize=20)
             axes.tick_params(axis="both", labelsize=14)
@@ -1437,27 +1437,27 @@ class CsvViewer(tk.Tk):
         )
 
         view_controls = ttk.LabelFrame(
-            chart_window, text="Način prikaza", padding=(10, 5, 10, 7)
+            chart_window, text="View mode", padding=(10, 5, 10, 7)
         )
         view_controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
         ttk.Button(
             view_controls,
-            text="Svi uzorci",
-            command=lambda: render_delta(None, "svi uzorci"),
+            text="All samples",
+            command=lambda: render_delta(None, "all samples"),
         ).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(
             view_controls,
-            text="1-minutni prosjek",
-            command=lambda: render_delta("minute", "1-minutni prosjek"),
+            text="1-minute average",
+            command=lambda: render_delta("minute", "1-minute average"),
         ).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(
             view_controls,
-            text="1-satni prosjek",
-            command=lambda: render_delta("hour", "1-satni prosjek"),
+            text="1-hour average",
+            command=lambda: render_delta("hour", "1-hour average"),
         ).pack(side=tk.LEFT)
 
         SeriesChecklist(
-            chart_window, "Mjerne serije", visibility, rerender
+            chart_window, "Measurement series", visibility, rerender
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
         def change_reference(_event: object = None) -> None:
@@ -1465,7 +1465,7 @@ class CsvViewer(tk.Tk):
             for header, selected in visibility.items():
                 selected.set(unit_from_header(header) == selected_unit)
             reference_zero_text.set(
-                f"Prikaži referentnu seriju kao Δ = 0"
+                f"Show reference series as Δ = 0"
                 f"{' ' + selected_unit if selected_unit else ''}"
             )
             rerender()
@@ -1481,7 +1481,7 @@ class CsvViewer(tk.Tk):
             canvas,
             self.current_file,
             "delta_graf",
-            "Spremi Delta graf kao PNG",
+            "Save Delta chart as PNG",
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
         def show_hover_value(event: object) -> None:
@@ -1532,15 +1532,15 @@ class CsvViewer(tk.Tk):
 
         canvas.mpl_connect("motion_notify_event", show_hover_value)
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        render_delta(None, "svi uzorci")
+        render_delta(None, "all samples")
 
     def show_histogram(self) -> None:
-        """Prikaži generički histogram numeričkih mjernih serija."""
+        """Display a generic histogram of numeric measurement series."""
         dataset = self.dataset
         if dataset is None or not dataset.has_time or not dataset.series:
             messagebox.showwarning(
-                "Nedostaju podaci",
-                "CSV mora sadržavati stupac 'Time' i numeričke mjerne stupce.",
+                "Missing data",
+                "CSV must contain a 'Time' column and numeric measurement columns.",
             )
             return
 
@@ -1549,8 +1549,8 @@ class CsvViewer(tk.Tk):
             from matplotlib.figure import Figure
         except ImportError:
             messagebox.showerror(
-                "Matplotlib nije instaliran",
-                "Pokrenite: python -m pip install -r requirements.txt",
+                "Matplotlib is not installed",
+                "Run: python -m pip install -r requirements.txt",
             )
             return
 
@@ -1558,7 +1558,7 @@ class CsvViewer(tk.Tk):
 
         if not series_data:
             messagebox.showwarning(
-                "Nema podataka", "Nema valjanih numeričkih vrijednosti za histogram."
+                "No data", "No valid numeric values are available for the histogram."
             )
             return
 
@@ -1591,15 +1591,15 @@ class CsvViewer(tk.Tk):
         hover_annotation = None
 
         histogram_controls = ttk.LabelFrame(
-            chart_window, text="Postavke histograma", padding=(10, 5, 10, 7)
+            chart_window, text="Histogram settings", padding=(10, 5, 10, 7)
         )
         histogram_controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
-        ttk.Label(histogram_controls, text="Broj binova:").pack(side=tk.LEFT)
+        ttk.Label(histogram_controls, text="Number of bins:").pack(side=tk.LEFT)
         bins_entry = ttk.Entry(histogram_controls, textvariable=bins_value, width=8)
         bins_entry.pack(side=tk.LEFT, padx=(5, 14))
 
         statistics_frame = ttk.LabelFrame(
-            chart_window, text="Statistika", padding=(8, 5, 8, 7)
+            chart_window, text="Statistics", padding=(8, 5, 8, 7)
         )
         statistics_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
         statistics_table = ttk.Treeview(
@@ -1609,7 +1609,7 @@ class CsvViewer(tk.Tk):
             height=min(5, len(series_data)),
         )
         for column, label, width in (
-            ("series", "Serija", 330),
+            ("series", "Series", 330),
             ("n", "N", 90),
             ("mean", "Mean", 130),
             ("std", "Std Dev", 130),
@@ -1627,19 +1627,19 @@ class CsvViewer(tk.Tk):
             ]
             if not selected_headers:
                 messagebox.showwarning(
-                    "Nije odabrana serija",
-                    "Odaberite barem jednu mjernu seriju.",
+                    "No series selected",
+                    "Select at least one measurement series.",
                     parent=chart_window,
                 )
                 return
 
             selected_units = {unit_from_header(header) for header in selected_headers}
             if len(selected_units) > 1:
-                readable_units = ", ".join(unit or "bez jedinice" for unit in selected_units)
+                readable_units = ", ".join(unit or "no unit" for unit in selected_units)
                 messagebox.showwarning(
-                    "Različite mjerne jedinice",
-                    f"Na istom histogramu mogu biti samo serije iste jedinice. "
-                    f"Odabrane jedinice: {readable_units}.",
+                    "Different measurement units",
+                    f"Only series with the same unit can be shown on the same histogram. "
+                    f"Selected units: {readable_units}.",
                     parent=chart_window,
                 )
                 return
@@ -1648,15 +1648,15 @@ class CsvViewer(tk.Tk):
                 time_from, time_to = time_filter.bounds()
             except ValueError:
                 messagebox.showerror(
-                    "Neispravan datum ili vrijeme",
-                    "Datum upišite kao 27.09.2026., a vrijeme kao 00:00.",
+                    "Invalid date or time",
+                    "Enter the date as 27.09.2026. and the time as 00:00.",
                     parent=chart_window,
                 )
                 return
             if time_from >= time_to:
                 messagebox.showerror(
-                    "Neispravan raspon",
-                    "Početno vrijeme mora biti prije završnog vremena.",
+                    "Invalid range",
+                    "Start time must be earlier than end time.",
                     parent=chart_window,
                 )
                 return
@@ -1670,8 +1670,8 @@ class CsvViewer(tk.Tk):
                     filtered_data[header] = filtered_values
             if not filtered_data:
                 messagebox.showwarning(
-                    "Nema podataka",
-                    "Odabrane serije nemaju uzoraka u zadanom vremenskom rasponu.",
+                    "No data",
+                    "The selected series have no samples in the specified time range.",
                     parent=chart_window,
                 )
                 return
@@ -1685,15 +1685,15 @@ class CsvViewer(tk.Tk):
                     bin_count = int(bins_value.get().strip())
                 except ValueError:
                     messagebox.showerror(
-                        "Neispravan broj binova",
-                        "Broj binova mora biti cijeli broj.",
+                        "Invalid number of bins",
+                        "The number of bins must be an integer.",
                         parent=chart_window,
                     )
                     return
                 if not 1 <= bin_count <= 10_000:
                     messagebox.showerror(
-                        "Neispravan broj binova",
-                        "Broj binova mora biti između 1 i 10.000.",
+                        "Invalid number of bins",
+                        "The number of bins must be between 1 and 10,000.",
                         parent=chart_window,
                     )
                     return
@@ -1742,15 +1742,15 @@ class CsvViewer(tk.Tk):
                 )
 
             unit = next(iter(selected_units))
-            x_label = f"Mjerena vrijednost ({unit})" if unit else "Mjerena vrijednost"
+            x_label = f"Measured value ({unit})" if unit else "Measured value"
             axes.set_title(
-                f"Histogram - {bin_count} binova ({total_samples:,} uzoraka)".replace(
+                f"Histogram - {bin_count} bins ({total_samples:,} samples)".replace(
                     ",", "."
                 ),
                 fontsize=20,
             )
             axes.set_xlabel(x_label, fontsize=16)
-            axes.set_ylabel("Broj uzoraka", fontsize=16)
+            axes.set_ylabel("Sample count", fontsize=16)
             axes.tick_params(axis="both", labelsize=12)
             axes.grid(True, axis="y", alpha=0.3)
             axes.legend(loc="upper right", fontsize=12)
@@ -1779,12 +1779,12 @@ class CsvViewer(tk.Tk):
             command=toggle_auto_bins,
         ).pack(side=tk.LEFT, padx=(0, 14))
         ttk.Button(
-            histogram_controls, text="Primijeni", command=render_histogram
+            histogram_controls, text="Apply", command=render_histogram
         ).pack(side=tk.LEFT)
         bins_entry.bind("<Return>", render_histogram)
 
         SeriesChecklist(
-            chart_window, "Mjerne serije", visibility, render_histogram
+            chart_window, "Measurement series", visibility, render_histogram
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
         ExportControls(
@@ -1793,7 +1793,7 @@ class CsvViewer(tk.Tk):
             canvas,
             self.current_file,
             "histogram",
-            "Spremi histogram kao PNG",
+            "Save histogram as PNG",
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
         def show_hover_value(event: object) -> None:
@@ -1823,7 +1823,7 @@ class CsvViewer(tk.Tk):
             hover_annotation.set_text(
                 f"{short_series_name(header)}\n"
                 f"{left:.9g} – {right:.9g}{unit_suffix}\n"
-                f"Broj uzoraka: {count}"
+                f"Sample count: {count}"
             )
             hover_annotation.set_visible(True)
             canvas.draw_idle()
@@ -1833,12 +1833,12 @@ class CsvViewer(tk.Tk):
         render_histogram()
 
     def show_scatter(self) -> None:
-        """Prikaži generički odnos dviju numeričkih mjernih serija."""
+        """Display a generic relationship between two numeric measurement series."""
         dataset = self.dataset
         if dataset is None or not dataset.has_time or len(dataset.series) < 2:
             messagebox.showwarning(
-                "Nedostaju podaci",
-                "Scatter graf zahtijeva stupac 'Time' i barem dvije numeričke serije.",
+                "Missing data",
+                "Scatter plot requires a 'Time' column and at least two numeric series.",
             )
             return
 
@@ -1847,8 +1847,8 @@ class CsvViewer(tk.Tk):
             from matplotlib.figure import Figure
         except ImportError:
             messagebox.showerror(
-                "Matplotlib nije instaliran",
-                "Pokrenite: python -m pip install -r requirements.txt",
+                "Matplotlib is not installed",
+                "Run: python -m pip install -r requirements.txt",
             )
             return
 
@@ -1856,8 +1856,8 @@ class CsvViewer(tk.Tk):
 
         if len(series_data) < 2:
             messagebox.showwarning(
-                "Nedostaju podaci",
-                "Za Scatter graf potrebne su barem dvije valjane numeričke serije.",
+                "Missing data",
+                "Scatter plot requires at least two valid numeric series.",
             )
             return
 
@@ -1890,7 +1890,7 @@ class CsvViewer(tk.Tk):
         manual_scale = {"enabled": False}
         current_view: dict[str, str | None] = {
             "period": None,
-            "title": "svi uzorci",
+            "title": "all samples",
         }
         scatter_collection = None
         hover_annotation = None
@@ -1899,10 +1899,10 @@ class CsvViewer(tk.Tk):
         plotted_times: list[datetime] = []
 
         series_controls = ttk.LabelFrame(
-            chart_window, text="Odabir serija", padding=(10, 5, 10, 7)
+            chart_window, text="Series selection", padding=(10, 5, 10, 7)
         )
         series_controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(8, 5))
-        ttk.Label(series_controls, text="X serija:").pack(side=tk.LEFT)
+        ttk.Label(series_controls, text="X series:").pack(side=tk.LEFT)
         x_picker = ttk.Combobox(
             series_controls,
             textvariable=x_series_value,
@@ -1911,7 +1911,7 @@ class CsvViewer(tk.Tk):
             width=42,
         )
         x_picker.pack(side=tk.LEFT, padx=(5, 16))
-        ttk.Label(series_controls, text="Y serija:").pack(side=tk.LEFT)
+        ttk.Label(series_controls, text="Y series:").pack(side=tk.LEFT)
         y_picker = ttk.Combobox(
             series_controls,
             textvariable=y_series_value,
@@ -1920,7 +1920,7 @@ class CsvViewer(tk.Tk):
             width=42,
         )
         y_picker.pack(side=tk.LEFT, padx=(5, 16))
-        ttk.Label(series_controls, text="Y način:").pack(side=tk.LEFT)
+        ttk.Label(series_controls, text="Y mode:").pack(side=tk.LEFT)
         mode_picker = ttk.Combobox(
             series_controls,
             textvariable=y_mode_value,
@@ -1931,7 +1931,7 @@ class CsvViewer(tk.Tk):
         mode_picker.pack(side=tk.LEFT, padx=(5, 0))
 
         view_controls = ttk.LabelFrame(
-            chart_window, text="Način prikaza", padding=(10, 5, 10, 7)
+            chart_window, text="View mode", padding=(10, 5, 10, 7)
         )
         view_controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
@@ -1968,14 +1968,14 @@ class CsvViewer(tk.Tk):
                 y_max = parse_number(y_max_value.get())
             except ValueError:
                 messagebox.showerror(
-                    "Neispravna vrijednost",
+                    "Invalid value",
                     "Sve granice X i Y skale moraju biti brojevi.",
                     parent=chart_window,
                 )
                 return
             if x_min >= x_max or y_min >= y_max:
                 messagebox.showerror(
-                    "Neispravan raspon",
+                    "Invalid range",
                     "Minimalna vrijednost svake osi mora biti manja od maksimalne.",
                     parent=chart_window,
                 )
@@ -1993,8 +1993,8 @@ class CsvViewer(tk.Tk):
             y_mode = y_mode_value.get()
             if x_header == y_header:
                 messagebox.showwarning(
-                    "Jednake serije",
-                    "Odaberite različite X i Y serije.",
+                    "Identical series",
+                    "Select different X and Y series.",
                     parent=chart_window,
                 )
                 return
@@ -2002,8 +2002,8 @@ class CsvViewer(tk.Tk):
             y_unit = unit_from_header(y_header)
             if y_mode == "Δ to X" and x_unit != y_unit:
                 messagebox.showwarning(
-                    "Različite mjerne jedinice",
-                    "Način 'Δ to X' zahtijeva jednake mjerne jedinice X i Y serije.",
+                    "Different measurement units",
+                    "'Δ to X' mode requires X and Y series to use the same measurement unit.",
                     parent=chart_window,
                 )
                 return
@@ -2011,15 +2011,15 @@ class CsvViewer(tk.Tk):
                 time_from, time_to = time_filter.bounds()
             except ValueError:
                 messagebox.showerror(
-                    "Neispravan datum ili vrijeme",
-                    "Datum upišite kao 27.09.2026., a vrijeme kao 00:00.",
+                    "Invalid date or time",
+                    "Enter the date as 27.09.2026. and the time as 00:00.",
                     parent=chart_window,
                 )
                 return
             if time_from >= time_to:
                 messagebox.showerror(
-                    "Neispravan raspon",
-                    "Početno vrijeme mora biti prije završnog vremena.",
+                    "Invalid range",
+                    "Start time must be earlier than end time.",
                     parent=chart_window,
                 )
                 return
@@ -2035,8 +2035,8 @@ class CsvViewer(tk.Tk):
             paired_times = sorted(x_by_time.keys() & y_by_time.keys())
             if not paired_times:
                 messagebox.showwarning(
-                    "Nema zajedničkih uzoraka",
-                    "X i Y serija nemaju zajedničke vremenske uzorke u odabranom rasponu.",
+                    "No common samples",
+                    "The X and Y series have no common time samples in the selected range.",
                     parent=chart_window,
                 )
                 return
@@ -2068,7 +2068,7 @@ class CsvViewer(tk.Tk):
                 label=f"{short_x} → {y_description}",
             )
             axes.set_title(
-                f"Scatter - {title_suffix} ({len(paired_times):,} uzoraka)".replace(
+                f"Scatter - {title_suffix} ({len(paired_times):,} samples)".replace(
                     ",", "."
                 ),
                 fontsize=22,
@@ -2116,25 +2116,25 @@ class CsvViewer(tk.Tk):
 
         ttk.Button(
             view_controls,
-            text="Svi uzorci",
-            command=lambda: render_scatter(None, "svi uzorci"),
+            text="All samples",
+            command=lambda: render_scatter(None, "all samples"),
         ).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(
             view_controls,
-            text="1-minutni prosjek",
-            command=lambda: render_scatter("minute", "1-minutni prosjek"),
+            text="1-minute average",
+            command=lambda: render_scatter("minute", "1-minute average"),
         ).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(
             view_controls,
-            text="1-satni prosjek",
-            command=lambda: render_scatter("hour", "1-satni prosjek"),
+            text="1-hour average",
+            command=lambda: render_scatter("hour", "1-hour average"),
         ).pack(side=tk.LEFT)
 
-        ttk.Button(scale_controls, text="Primijeni", command=apply_scale).pack(
+        ttk.Button(scale_controls, text="Apply", command=apply_scale).pack(
             side=tk.LEFT, padx=(0, 6)
         )
         ttk.Button(
-            scale_controls, text="Automatska skala", command=reset_scale
+            scale_controls, text="Auto scale", command=reset_scale
         ).pack(side=tk.LEFT)
         for entry in (x_min_entry, x_max_entry, y_min_entry, y_max_entry):
             entry.bind("<Return>", apply_scale)
@@ -2147,7 +2147,7 @@ class CsvViewer(tk.Tk):
             canvas,
             self.current_file,
             "scatter",
-            "Spremi Scatter graf kao PNG",
+            "Save Scatter plot as PNG",
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
 
         def show_hover_value(event: object) -> None:
@@ -2187,14 +2187,14 @@ class CsvViewer(tk.Tk):
                 f"{' ' + x_unit if x_unit else ''}\n"
                 f"Y: {y_description}\n{plotted_y[index]:.9g}"
                 f"{' ' + displayed_y_unit if displayed_y_unit else ''}\n"
-                f"Vrijeme: {plotted_times[index].strftime('%d.%m.%Y. %H:%M:%S')}"
+                f"Time: {plotted_times[index].strftime('%d.%m.%Y. %H:%M:%S')}"
             )
             hover_annotation.set_visible(True)
             canvas.draw_idle()
 
         canvas.mpl_connect("motion_notify_event", show_hover_value)
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        render_scatter(None, "svi uzorci")
+        render_scatter(None, "all samples")
 
     def _configure_columns(self) -> None:
         column_ids = [f"column_{index}" for index in range(len(self.headers))]
@@ -2217,7 +2217,7 @@ class CsvViewer(tk.Tk):
             normalized = (row + [""] * len(self.headers))[: len(self.headers)]
             self.table.insert("", tk.END, values=normalized)
 
-        self.page_text.set(f"Stranica {self.current_page + 1} / {self.page_count}")
+        self.page_text.set(f"Page {self.current_page + 1} / {self.page_count}")
         self.previous_button.configure(
             state=tk.NORMAL if self.current_page > 0 else tk.DISABLED
         )
