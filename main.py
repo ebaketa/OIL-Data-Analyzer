@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Elvis Baketa
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Simple CSV viewer with a tabular display."""
 
 from __future__ import annotations
